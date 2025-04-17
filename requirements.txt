@@ -1,5 +1,5 @@
-python-telegram-bot==20.3
 Flask
-playwright
 gspread
 oauth2client
+playwright
+python-telegram-bot==20.3
