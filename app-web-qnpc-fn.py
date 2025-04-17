@@ -79,4 +79,4 @@ def stream_logs():
     return Response(stream_with_context(generate_logs()), mimetype='text/event-stream')
 
 if __name__ == '__main__':
-    app.run(debug=False, threaded=True)
+    app.run(debug=False, threaded=True, host='0.0.0.0', port=5000)
