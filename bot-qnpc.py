@@ -58,6 +58,9 @@ def webhook():
         # Gửi lại tin nhắn
         bot.send_message(chat_id=chat_id, text=f"Bạn vừa gửi: {message_text}")
 
+        # GỌI thêm xử lý nếu người dùng yêu cầu lấy bài viết
+        handle_background_task(chat_id, message_text)
+
     return 'ok', 200
 
 # Route kiểm tra server sống
