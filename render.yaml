@@ -2,6 +2,7 @@ services:
   - type: web
     name: bot-qnpc
     env: python
-    buildCommand: pip install -r requirements.txt && playwright install chromium
+    buildCommand: |
+      pip install -r requirements.txt
+      playwright install --with-deps
     startCommand: python bot-qnpc.py
-    plan: free
