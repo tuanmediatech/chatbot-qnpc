@@ -1,82 +1,80 @@
-from flask import Flask, render_template, request, Response, stream_with_context
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import time
+import os
+import json
+import logging
+import subprocess
+from flask import Flask, request, jsonify
+from telegram import Update
+from telegram.ext import Application, MessageHandler, ContextTypes, filters
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+# Cấu hình logging
+logging.basicConfig(level=logging.INFO)
 
-# Hàm ghi dữ liệu vào Google Sheets
-def write_to_google_sheets(data):
-    try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-        client = gspread.authorize(creds)
-        sheet = client.open_by_key("11eUWnFjsHTpHX81Ap6idXd-SDhzO1pCOQ0NNOptYxv8").sheet1
-        sheet.append_rows([["ID", "Tiêu đề", "Ngày đăng", "Nội dung", "Nội dung edit", "Trạng thái", "Link"]])
-        sheet.append_rows(data)
-    except gspread.exceptions.APIError as e:
-        print("Google Sheets API Error:", e.response.status_code)
-    except Exception as e:
-        print(f"Error writing to Google Sheets: {str(e)}")
+# Tạo Flask app
+app = Flask(__name__)
 
-# Hàm lấy bài viết và ghi vào Google Sheets
-def get_articles_and_save_to_sheets(num_articles):
-    try:
-        # Thực hiện lấy bài viết (thay thế bằng cách lấy dữ liệu từ nguồn khác)
-        articles = [
-            ("Title 1", "http://example.com/1"),
-            ("Title 2", "http://example.com/2")
-        ]
-        
-        # Chỉ định các thông tin bài viết (giả sử bài viết có ngày và nội dung cố định)
-        news_list = []
-        for i, (title, link) in enumerate(articles):
-            print(f"Đang xử lý bài {i + 1}: {title}")
-            date = "2025-04-17"  # Giả sử ngày đăng
-            content = "Nội dung bài viết giả lập."
-            
-            news_list.append([i + 1, title, date, content, "", "Chờ duyệt", link])
-            time.sleep(0.3)
+# Đọc TELEGRAM_TOKEN từ biến môi trường
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+WEBHOOK_SECRET_PATH = "/webhook"
 
-        print("Đang ghi dữ liệu vào Google Sheets...")
-        write_to_google_sheets(news_list)
-        return True
-    except Exception as e:
-        print(f"Lỗi khi lấy bài viết: {e}")
-        return False
+# Khởi tạo Telegram bot app
+telegram_app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-# Đoạn code Flask giữ nguyên để tiếp tục chạy app
-@app.route('/')
-def index():
-    return render_template("index.html")
-
-@app.route('/stream_logs', methods=["POST"])
-def stream_logs():
-    def generate_logs():
+# Xử lý tin nhắn Telegram
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.lower()
+    
+    if "lấy" in text and "bài" in text:
         try:
-            num_articles = int(request.form.get("num_articles", 0))
-            if num_articles <= 0:
-                yield "data: ❌ Số lượng bài viết không hợp lệ.\n\n"
-                yield "event: done\ndata: failed\n\n"
-                return
+            so_bai = int(''.join(filter(str.isdigit, text)))
 
-            start_time = time.time()
-            yield f"data: 📥 Yêu cầu lấy {num_articles} bài viết\n\n"
-            yield "data: 🔄 Đang lấy danh sách bài viết...\n\n"
+            await update.message.reply_text(f"📥 Đã nhận yêu cầu. Đang tiến hành lấy {so_bai} bài viết...")
 
-            if get_articles_and_save_to_sheets(num_articles):
-                duration = round(time.time() - start_time, 2)
-                yield f"data: ✅ Hoàn tất! ⏱️ Mất {duration} giây.\n\n"
-                yield "event: done\ndata: success\n\"
-            else:
-                yield "data: ❌ Lỗi khi xử lý bài viết.\n\n"
-                yield "event: done\ndata: failed\n\n"
+            # Chạy subprocess file xử lý
+            subprocess.Popen(["python", "xu-ly-lay-bai.py", str(so_bai)])
 
+            await update.message.reply_text(
+                "✅ Đang xử lý... Vui lòng đợi 30–60 giây.\n"
+                "📄 Kết quả sẽ có trên Google Sheets:\n"
+                "🔗 https://docs.google.com/spreadsheets/d/11eUWnFjsHTpHX81Ap6idXd-SDhzO1pCOQ0NNOptYxv8/edit?gid=907517028#gid=907517028"
+            )
+        except ValueError:
+            await update.message.reply_text(
+                "⚠️ Không rõ số bài viết bạn muốn lấy. Hãy nhắn như: *lấy 5 bài viết*", parse_mode="Markdown")
         except Exception as e:
-            yield f"data: ❌ Lỗi: {str(e)}\n\n"
-            yield "event: done\ndata: failed\n\n"
+            logging.error(f"Lỗi khi xử lý lấy bài: {e}")
+            await update.message.reply_text("⚠️ Đã xảy ra lỗi. Vui lòng thử lại sau.")
+    else:
+        await update.message.reply_text(
+            "👋 Gửi tin nhắn: *lấy 5 bài viết* để bắt đầu.", parse_mode="Markdown"
+        )
 
-    return Response(stream_with_context(generate_logs()), mimetype='text/event-stream')
+# Gắn handler cho bot
+telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-if __name__ == '__main__':
-    app.run(debug=False, threaded=True, port=5000)
+# Route kiểm tra server sống
+@app.route('/', methods=['GET'])
+def index():
+    return "✅ Flask Server is Running!"
+
+# Route webhook Telegram
+@app.route(WEBHOOK_SECRET_PATH, methods=['POST'])
+def webhook():
+    try:
+        update = Update.de_json(request.get_json(force=True), telegram_app.bot)
+        telegram_app.update_queue.put_nowait(update)
+    except Exception as e:
+        logging.error(f"Webhook error: {e}")
+    return jsonify({"status": "ok"})
+
+# Set webhook khi server start
+async def set_webhook():
+    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}{WEBHOOK_SECRET_PATH}"
+    await telegram_app.bot.set_webhook(webhook_url)
+    logging.info(f"Webhook set: {webhook_url}")
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(set_webhook())
+
+    app.run(host="0.0.0.0", port=5000)
