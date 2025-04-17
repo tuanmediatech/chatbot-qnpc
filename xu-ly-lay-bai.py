@@ -11,7 +11,10 @@ def lay_bai(so_bai):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        so_bai = int(sys.argv[1])
-        lay_bai(so_bai)
+        try:
+            so_bai = int(sys.argv[1])
+            lay_bai(so_bai)
+        except ValueError:
+            print("⚠️ Tham số truyền vào phải là số nguyên!")
     else:
         print("⚠️ Bạn chưa truyền số lượng bài viết cần lấy.")
