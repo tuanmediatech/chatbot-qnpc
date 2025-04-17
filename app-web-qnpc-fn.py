@@ -2,6 +2,7 @@ import logging
 from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+import subprocess
 
 # Thiết lập logging để kiểm tra các hoạt động
 logging.basicConfig(level=logging.INFO)
@@ -16,7 +17,7 @@ bot = Bot(token=TELEGRAM_TOKEN)
 WEBHOOK_URL = f"https://chatbot-qnpc.onrender.com/{TELEGRAM_TOKEN}"
 
 # Hàm xử lý tin nhắn từ Telegram
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
     
     # Đoạn mã xử lý tin nhắn
@@ -26,25 +27,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             so_bai = int(''.join(filter(str.isdigit, text)))
             logger.info(f"Nhận yêu cầu lấy {so_bai} bài viết")
 
-            await update.message.reply_text(f"📥 Đã nhận yêu cầu. Đang tiến hành lấy {so_bai} bài viết...")
+            update.message.reply_text(f"📥 Đã nhận yêu cầu. Đang tiến hành lấy {so_bai} bài viết...")
 
             # Gọi script xử lý lấy bài viết (giả sử app-web-qnpc-fn.py xử lý)
             subprocess.Popen(["python", "app-web-qnpc-fn.py", str(so_bai)])
 
-            await update.message.reply_text(
+            update.message.reply_text(
                 "✅ Đang xử lý... Vui lòng đợi khoảng 30–60 giây.\n"
                 "📄 Kết quả sẽ có trên Google Sheets:\n"
                 "🔗 https://docs.google.com/spreadsheets/d/11eUWnFjsHTpHX81Ap6idXd-SDhzO1pCOQ0NNOptYxv8/edit?gid=907517028#gid=907517028"
             )
 
         except ValueError:
-            await update.message.reply_text("⚠️ Không rõ số bài viết bạn muốn lấy. Vui lòng thử lại như: *lấy 5 bài viết*", parse_mode="Markdown")
+            update.message.reply_text("⚠️ Không rõ số bài viết bạn muốn lấy. Vui lòng thử lại như: *lấy 5 bài viết*", parse_mode="Markdown")
         except Exception as e:
             logger.error(f"Lỗi trong xử lý: {str(e)}")
-            await update.message.reply_text("⚠️ Đã xảy ra lỗi. Vui lòng thử lại sau.")
+            update.message.reply_text("⚠️ Đã xảy ra lỗi. Vui lòng thử lại sau.")
     else:
-        await update.message.reply_text("👋 Nhắn: *lấy 5 bài viết* để bắt đầu.", parse_mode="Markdown")
-
+        update.message.reply_text("👋 Nhắn: *lấy 5 bài viết* để bắt đầu.", parse_mode="Markdown")
 
 # Route chính để kiểm tra Flask server hoạt động
 @app.route('/', methods=['GET'])
@@ -68,7 +68,6 @@ def webhook():
         logger.error(f"Lỗi khi xử lý webhook: {str(e)}")
 
     return 'ok'
-
 
 if __name__ == "__main__":
     # Chạy Flask app
