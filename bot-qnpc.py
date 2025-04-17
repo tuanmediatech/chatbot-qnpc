@@ -9,6 +9,25 @@ app = Flask(__name__)
 BOT_TOKEN = "7862312312:AAGRe-kNQPtz2CDmfowFlCAPmJbYUIcJKvg"
 bot = telegram.Bot(token=BOT_TOKEN)
 
+# Route webhook phải TRÙNG với BOT_TOKEN
+@app.route(f'/{BOT_TOKEN}', methods=['POST'])
+def webhook():
+    # Lấy dữ liệu Telegram gửi tới
+    update = telegram.Update.de_json(request.get_json(force=True), bot)
+
+    # Xử lý nội dung tin nhắn
+    if update.message:
+        chat_id = update.message.chat.id
+        message_text = update.message.text
+
+        # Gửi lại tin nhắn
+        bot.send_message(chat_id=chat_id, text=f"Bạn vừa gửi: {message_text}")
+
+        # GỌI thêm xử lý nếu người dùng yêu cầu lấy bài viết
+        handle_background_task(chat_id, message_text)
+
+    return 'ok', 200
+
 # Hàm xử lý ngầm tin nhắn từ người dùng
 def handle_background_task(chat_id, message_text):
     text = message_text.lower()
@@ -43,25 +62,6 @@ def handle_background_task(chat_id, message_text):
         except Exception as e:
             logging.error(f"Lỗi trong xử lý: {str(e)}")
             bot.send_message(chat_id=chat_id, text="⚠️ Đã xảy ra lỗi. Vui lòng thử lại sau.")
-
-# Route webhook phải TRÙNG với BOT_TOKEN
-@app.route(f'/{BOT_TOKEN}', methods=['POST'])
-def webhook():
-    # Lấy dữ liệu Telegram gửi tới
-    update = telegram.Update.de_json(request.get_json(force=True), bot)
-
-    # Xử lý nội dung tin nhắn
-    if update.message:
-        chat_id = update.message.chat.id
-        message_text = update.message.text
-
-        # Gửi lại tin nhắn
-        bot.send_message(chat_id=chat_id, text=f"Bạn vừa gửi: {message_text}")
-
-        # GỌI thêm xử lý nếu người dùng yêu cầu lấy bài viết
-        handle_background_task(chat_id, message_text)
-
-    return 'ok', 200
 
 # Route kiểm tra server sống
 @app.route('/', methods=['GET'])
