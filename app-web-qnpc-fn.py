@@ -1,80 +1,75 @@
-import os
-import json
 import logging
-import subprocess
-from flask import Flask, request, jsonify
-from telegram import Update
-from telegram.ext import Application, MessageHandler, ContextTypes, filters
+from flask import Flask, request
+from telegram import Update, Bot
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
-# Cấu hình logging
+# Thiết lập logging để kiểm tra các hoạt động
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Tạo Flask app
+# Khai báo Flask app và Telegram bot
 app = Flask(__name__)
+TELEGRAM_TOKEN = "7862312312:AAGRe-kNQPtz2CDmfowFlCAPmJbYUIcJKvgn"  # Thay thế bằng token của bot
+bot = Bot(token=TELEGRAM_TOKEN)
 
-# Đọc TELEGRAM_TOKEN từ biến môi trường
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-WEBHOOK_SECRET_PATH = "/webhook"
+# Webhook URL (thay yourdomain.com bằng URL của bạn hoặc URL từ ngrok nếu đang thử nghiệm local)
+WEBHOOK_URL = f"https://chatbot-qnpc.onrender.com/{TELEGRAM_TOKEN}"
 
-# Khởi tạo Telegram bot app
-telegram_app = Application.builder().token(TELEGRAM_TOKEN).build()
-
-# Xử lý tin nhắn Telegram
+# Hàm xử lý tin nhắn từ Telegram
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
     
+    # Đoạn mã xử lý tin nhắn
     if "lấy" in text and "bài" in text:
         try:
+            # Trích xuất số bài viết từ tin nhắn
             so_bai = int(''.join(filter(str.isdigit, text)))
+            logger.info(f"Nhận yêu cầu lấy {so_bai} bài viết")
 
             await update.message.reply_text(f"📥 Đã nhận yêu cầu. Đang tiến hành lấy {so_bai} bài viết...")
 
-            # Chạy subprocess file xử lý
-            subprocess.Popen(["python", "xu-ly-lay-bai.py", str(so_bai)])
+            # Gọi script xử lý lấy bài viết (giả sử app-web-qnpc-fn.py xử lý)
+            subprocess.Popen(["python", "app-web-qnpc-fn.py", str(so_bai)])
 
             await update.message.reply_text(
-                "✅ Đang xử lý... Vui lòng đợi 30–60 giây.\n"
+                "✅ Đang xử lý... Vui lòng đợi khoảng 30–60 giây.\n"
                 "📄 Kết quả sẽ có trên Google Sheets:\n"
                 "🔗 https://docs.google.com/spreadsheets/d/11eUWnFjsHTpHX81Ap6idXd-SDhzO1pCOQ0NNOptYxv8/edit?gid=907517028#gid=907517028"
             )
+
         except ValueError:
-            await update.message.reply_text(
-                "⚠️ Không rõ số bài viết bạn muốn lấy. Hãy nhắn như: *lấy 5 bài viết*", parse_mode="Markdown")
+            await update.message.reply_text("⚠️ Không rõ số bài viết bạn muốn lấy. Vui lòng thử lại như: *lấy 5 bài viết*", parse_mode="Markdown")
         except Exception as e:
-            logging.error(f"Lỗi khi xử lý lấy bài: {e}")
+            logger.error(f"Lỗi trong xử lý: {str(e)}")
             await update.message.reply_text("⚠️ Đã xảy ra lỗi. Vui lòng thử lại sau.")
     else:
-        await update.message.reply_text(
-            "👋 Gửi tin nhắn: *lấy 5 bài viết* để bắt đầu.", parse_mode="Markdown"
-        )
+        await update.message.reply_text("👋 Nhắn: *lấy 5 bài viết* để bắt đầu.", parse_mode="Markdown")
 
-# Gắn handler cho bot
-telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-# Route kiểm tra server sống
+# Route chính để kiểm tra Flask server hoạt động
 @app.route('/', methods=['GET'])
 def index():
+    logger.info("Flask Server is Running!")  # Log khi Flask đang chạy
     return "✅ Flask Server is Running!"
 
-# Route webhook Telegram
-@app.route(WEBHOOK_SECRET_PATH, methods=['POST'])
+# Webhook route xử lý POST từ Telegram
+@app.route('/' + TELEGRAM_TOKEN, methods=['POST'])
 def webhook():
+    json_str = request.get_data(as_text=True)
+    update = Update.de_json(json_str, bot)
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    dispatcher = application.dispatcher
+    dispatcher.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    
     try:
-        update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-        telegram_app.update_queue.put_nowait(update)
+        dispatcher.process_update(update)
+        logger.info("Đã xử lý webhook thành công.")
     except Exception as e:
-        logging.error(f"Webhook error: {e}")
-    return jsonify({"status": "ok"})
+        logger.error(f"Lỗi khi xử lý webhook: {str(e)}")
 
-# Set webhook khi server start
-async def set_webhook():
-    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}{WEBHOOK_SECRET_PATH}"
-    await telegram_app.bot.set_webhook(webhook_url)
-    logging.info(f"Webhook set: {webhook_url}")
+    return 'ok'
+
 
 if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(set_webhook())
-
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    # Chạy Flask app
+    app.run(port=5000, debug=True)
