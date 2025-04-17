@@ -9,6 +9,47 @@ app = Flask(__name__)
 BOT_TOKEN = "7862312312:AAGRe-kNQPtz2CDmfowFlCAPmJbYUIcJKvg"
 bot = telegram.Bot(token=BOT_TOKEN)
 
+# Hàm xử lý tin nhắn từ người dùng
+def handle_message(chat_id, message_text):
+    text = message_text.lower()
+    
+    if "lấy" in text and "bài" in text:
+        try:
+            # Trích xuất số bài viết từ tin nhắn
+            so_bai = int(''.join(filter(str.isdigit, text)))
+
+            # Gửi xác nhận đã nhận yêu cầu
+            bot.send_message(chat_id=chat_id, text=f"📥 Đã nhận yêu cầu. Đang tiến hành lấy {so_bai} bài viết...")
+
+            # Chạy script xử lý lấy bài viết ở chế độ nền
+            subprocess.Popen(["python", "app-web-qnpc-fn.py", str(so_bai)])
+
+            # Thông báo đang xử lý
+            bot.send_message(
+                chat_id=chat_id,
+                text=(
+                    "✅ Đang xử lý... Vui lòng đợi khoảng 30–60 giây.\n"
+                    "📄 Kết quả sẽ có trên Google Sheets:\n"
+                    "🔗 https://docs.google.com/spreadsheets/d/11eUWnFjsHTpHX81Ap6idXd-SDhzO1pCOQ0NNOptYxv8/edit?gid=907517028#gid=907517028"
+                )
+            )
+
+        except ValueError:
+            bot.send_message(
+                chat_id=chat_id,
+                text="⚠️ Không rõ số bài viết bạn muốn lấy. Vui lòng thử lại như: *lấy 5 bài viết*",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logging.error(f"Lỗi trong xử lý: {str(e)}")
+            bot.send_message(chat_id=chat_id, text="⚠️ Đã xảy ra lỗi. Vui lòng thử lại sau.")
+    else:
+        bot.send_message(
+            chat_id=chat_id,
+            text="👋 Nhắn: *lấy 5 bài viết* để bắt đầu.",
+            parse_mode="Markdown"
+        )
+
 # Route webhook phải TRÙNG với BOT_TOKEN
 @app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
