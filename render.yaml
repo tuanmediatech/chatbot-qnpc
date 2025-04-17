@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: bot-qnpc-app
+    name: bot-qnpc
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app-web-qnpc-fn:app
+    startCommand: gunicorn bot-qnpc:app
     envVars:
       - key: TELEGRAM_TOKEN
         value: 7862312312:AAGRe-kNQPtz2CDmfowFlCAPmJbYUIcJKvg
