@@ -9,8 +9,8 @@ app = Flask(__name__)
 BOT_TOKEN = "7862312312:AAGRe-kNQPtz2CDmfowFlCAPmJbYUIcJKvg"
 bot = telegram.Bot(token=BOT_TOKEN)
 
-# Hàm xử lý tin nhắn từ người dùng
-def handle_message(chat_id, message_text):
+# Hàm xử lý ngầm tin nhắn từ người dùng
+def handle_background_task(chat_id, message_text):
     text = message_text.lower()
     
     if "lấy" in text and "bài" in text:
@@ -18,13 +18,13 @@ def handle_message(chat_id, message_text):
             # Trích xuất số bài viết từ tin nhắn
             so_bai = int(''.join(filter(str.isdigit, text)))
 
-            # Gửi xác nhận đã nhận yêu cầu
+            # Gửi thông báo xác nhận lấy bài (tùy thích, nếu muốn ẩn thì bỏ dòng này)
             bot.send_message(chat_id=chat_id, text=f"📥 Đã nhận yêu cầu. Đang tiến hành lấy {so_bai} bài viết...")
 
             # Chạy script xử lý lấy bài viết ở chế độ nền
             subprocess.Popen(["python", "app-web-qnpc-fn.py", str(so_bai)])
 
-            # Thông báo đang xử lý
+            # Gửi thông báo sau khi bắt đầu xử lý
             bot.send_message(
                 chat_id=chat_id,
                 text=(
@@ -43,12 +43,6 @@ def handle_message(chat_id, message_text):
         except Exception as e:
             logging.error(f"Lỗi trong xử lý: {str(e)}")
             bot.send_message(chat_id=chat_id, text="⚠️ Đã xảy ra lỗi. Vui lòng thử lại sau.")
-    else:
-        bot.send_message(
-            chat_id=chat_id,
-            text="👋 Nhắn: *lấy 5 bài viết* để bắt đầu.",
-            parse_mode="Markdown"
-        )
 
 # Route webhook phải TRÙNG với BOT_TOKEN
 @app.route(f'/{BOT_TOKEN}', methods=['POST'])
